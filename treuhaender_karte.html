@@ -4,36 +4,61 @@
 <meta charset="UTF-8">
 <title>Treuhänder Kartenfilter</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
+:root{
+  --ink:#0E1217; --graphite:#5B6373; --steel:#939AA6;
+  --line:#D8DAD4; --paper:#F6F6F3; --white:#FFFFFF;
+  --signal:#0FA86F; --signal-deep:#0A7A52; --signal-tint:#E3F5EC;
+  --verified:#2A4DF0; --reject:#C0392B;
+  --font-sans:'IBM Plex Sans',system-ui,sans-serif;
+  --font-mono:'IBM Plex Mono',ui-monospace,monospace;
+}
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
-#bar{background:#0d2f3b;color:#fff;padding:10px 16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-height:50px}
-#bar h1{font-size:14px;font-weight:600;margin-right:4px}
-button{padding:6px 12px;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:500}
+body{font-family:var(--font-sans);color:var(--ink);-webkit-font-smoothing:antialiased}
+#bar{background:var(--ink);color:var(--white);padding:0 16px;display:flex;align-items:center;gap:9px;flex-wrap:wrap;min-height:56px}
+.brand{display:flex;align-items:center;gap:9px;margin-right:4px}
+.tile{width:28px;height:28px;background:var(--signal);border-radius:7px;display:flex;align-items:flex-end;padding:3px 4px;flex-shrink:0}
+.tile span{font-weight:700;font-size:17px;color:#fff;line-height:.72;letter-spacing:-0.05em}
+.tile span i{color:var(--ink);font-style:normal}
+.wm{font-weight:700;letter-spacing:-0.035em;font-size:15px}
+.wm i{color:var(--signal);font-style:normal}
+#bar .lbl{font-family:var(--font-mono);font-size:9.5px;letter-spacing:0.14em;text-transform:uppercase;color:var(--steel);margin:0 4px 0 2px}
+.home{font-family:var(--font-mono);font-size:9.5px;letter-spacing:0.12em;text-transform:uppercase;color:var(--steel);text-decoration:none;border:1px solid #2A3140;padding:6px 9px;border-radius:7px;white-space:nowrap;transition:color .15s,border-color .15s}
+.home:hover{color:var(--signal);border-color:var(--signal)}
+button{font-family:var(--font-sans);padding:8px 14px;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;transition:filter .15s,background .15s}
+button:hover:not(:disabled){filter:brightness(1.08)}
 button:disabled{opacity:.35;cursor:not-allowed}
-#btnLoad{background:#81dd01;color:#0d2f3b}
-#btnDraw{background:#f39c12;color:#fff}
-#btnDraw.active{background:#e74c3c;animation:pulse 1s infinite}
-#btnClear{background:#7f8c8d;color:#fff}
-#btnExport{background:#2980b9;color:#fff}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
-#status{margin-left:auto;font-size:12px;background:rgba(255,255,255,.12);padding:5px 10px;border-radius:6px}
-#status b{color:#81dd01}
-#map{height:calc(100vh - 50px)}
+#btnLoad{background:var(--signal);color:#fff}
+#btnDraw{background:#1d2530;color:#fff;border:1px solid #2A3140}
+#btnDraw.active{background:var(--reject);color:#fff;border-color:var(--reject);animation:pulse 1s infinite}
+#btnClear{background:transparent;color:var(--steel);border:1px solid #2A3140}
+#btnExport{background:var(--verified);color:#fff}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
+#status{margin-left:auto;font-family:var(--font-mono);font-size:11px;letter-spacing:0.04em;color:var(--steel);background:rgba(255,255,255,.06);padding:6px 11px;border-radius:7px}
+#status b{color:var(--signal);font-weight:600}
+#map{height:calc(100vh - 56px)}
 #fileInput{display:none}
-#hint{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.75);color:#fff;padding:9px 18px;border-radius:8px;font-size:13px;z-index:999;display:none;pointer-events:none}
-.legend{background:#fff;padding:8px 12px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.15);font-size:12px;line-height:2}
-.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:middle}
+#hint{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:9px 18px;border-radius:9px;font-size:13px;z-index:999;display:none;pointer-events:none;box-shadow:0 6px 24px rgba(14,18,23,.28)}
+.legend{background:#fff;padding:10px 13px;border-radius:9px;box-shadow:0 2px 10px rgba(14,18,23,.12);border:1px solid var(--line);font-family:var(--font-mono);font-size:11px;letter-spacing:0.03em;line-height:1.95;color:var(--graphite)}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:middle}
 </style>
 </head>
 <body>
 <div id="bar">
-  <h1>Treuhänder Kartenfilter</h1>
+  <a class="home" href="index.html" title="Zur Übersicht">‹ Übersicht</a>
+  <div class="brand">
+    <div class="tile"><span>r<i>.</i></span></div>
+    <span class="wm">rombro<i>.</i>ch</span>
+  </div>
+  <span class="lbl">Treuhänder · Karte</span>
   <input type="file" id="fileInput" accept=".csv">
-  <button id="btnLoad" onclick="document.getElementById('fileInput').click()">📂 CSV laden</button>
-  <button id="btnDraw" onclick="toggleDraw()" disabled>✏️ Bereich zeichnen</button>
-  <button id="btnClear" onclick="clearAll()" disabled>✕ Löschen</button>
-  <button id="btnExport" onclick="doExport()" disabled>⬇ Exportieren</button>
+  <button id="btnLoad" onclick="document.getElementById('fileInput').click()">CSV laden</button>
+  <button id="btnDraw" onclick="toggleDraw()" disabled>Bereich zeichnen</button>
+  <button id="btnClear" onclick="clearAll()" disabled>Löschen</button>
+  <button id="btnExport" onclick="doExport()" disabled>Exportieren</button>
   <span id="status">CSV laden zum Starten</span>
 </div>
 <div id="map"></div>
@@ -50,7 +75,7 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
 
 // Büro
 var officeIcon = L.divIcon({
-  html:'<div style="width:14px;height:14px;background:#e74c3c;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 2px #e74c3c;margin:-7px 0 0 -7px"></div>',
+  html:'<div style="width:14px;height:14px;background:#0E1217;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 3px #0FA86F;margin:-7px 0 0 -7px"></div>',
   className:'',iconSize:[0,0]
 });
 L.marker([47.377987,8.679233],{icon:officeIcon}).addTo(map)
@@ -60,9 +85,9 @@ L.marker([47.377987,8.679233],{icon:officeIcon}).addTo(map)
 var leg=L.control({position:'bottomright'});
 leg.onAdd=function(){
   var d=L.DomUtil.create('div','legend');
-  d.innerHTML='<span class="dot" style="background:#2980b9"></span>Alle<br>'+
-    '<span class="dot" style="background:#27ae60"></span>Im Bereich<br>'+
-    '<span class="dot" style="background:#e74c3c;border:2px solid #fff"></span>Büro';
+  d.innerHTML='<span class="dot" style="background:#5B6373"></span>Alle Treuhänder<br>'+
+    '<span class="dot" style="background:#0FA86F"></span>Im Bereich<br>'+
+    '<span class="dot" style="background:#0E1217;box-shadow:0 0 0 2px #0FA86F"></span>Dein Büro';
   return d;
 };
 leg.addTo(map);
@@ -97,10 +122,10 @@ document.getElementById('fileInput').addEventListener('change',function(e){
         var lng=parseFloat(row[lngKey]);
         if(isNaN(lat)||isNaN(lng)||lat===0&&lng===0)return;
         var m=L.circleMarker([lat,lng],{
-          radius:6,fillColor:'#2980b9',color:'#fff',
+          radius:6,fillColor:'#5B6373',color:'#fff',
           weight:1.5,opacity:1,fillOpacity:.85
         }).addTo(map);
-        var web=row.webseite?'<br><a href="'+row.webseite+'" target="_blank" style="color:#2980b9;font-size:11px">'+row.webseite+'</a>':'';
+        var web=row.webseite?'<br><a href="'+row.webseite+'" target="_blank" style="color:#0A7A52;font-size:11px">'+row.webseite+'</a>':'';
         m.bindPopup('<b>'+(row.name||'–')+'</b><br><span style="font-size:11px;color:#666">'+(row.strasse||'')+', '+(row.plz||'')+' '+(row.ort||'')+'</span>'+web);
         m.rowData=row;
         markers.push(m);
@@ -159,7 +184,7 @@ function onMapDblClick(e){
 function updateDrawPreview(){
   if(drawLayer){map.removeLayer(drawLayer);}
   if(drawPoints.length<2)return;
-  drawLayer=L.polyline(drawPoints,{color:'#e74c3c',weight:2,dashArray:'6,4'}).addTo(map);
+  drawLayer=L.polyline(drawPoints,{color:'#0A7A52',weight:2,dashArray:'6,4'}).addTo(map);
 }
 
 function finishDraw(){
@@ -167,7 +192,7 @@ function finishDraw(){
   map.off('dblclick',onMapDblClick);
   drawing=false;
   map.getContainer().style.cursor='';
-  document.getElementById('btnDraw').textContent='✏️ Bereich neu zeichnen';
+  document.getElementById('btnDraw').textContent='Bereich neu zeichnen';
   document.getElementById('btnDraw').classList.remove('active');
   if(drawLayer){map.removeLayer(drawLayer);drawLayer=null;}
   hint('');
@@ -175,7 +200,7 @@ function finishDraw(){
     hint('Mindestens 3 Punkte benötigt.',2500);
     return;
   }
-  polyLayer=L.polygon(drawPoints,{color:'#e74c3c',fillOpacity:.08,weight:2}).addTo(map);
+  polyLayer=L.polygon(drawPoints,{color:'#0A7A52',fillOpacity:.08,weight:2}).addTo(map);
   filterByPoly(drawPoints);
   document.getElementById('btnClear').disabled=false;
 }
@@ -184,11 +209,11 @@ function filterByPoly(ring){
   filteredData=[];
   markers.forEach(function(m){
     if(pip(m.getLatLng(),ring)){
-      m.setStyle({fillColor:'#27ae60',radius:8,fillOpacity:1});
+      m.setStyle({fillColor:'#0FA86F',radius:8,fillOpacity:1});
       m.bringToFront();
       filteredData.push(m.rowData);
     } else {
-      m.setStyle({fillColor:'#bbb',radius:4,fillOpacity:.3});
+      m.setStyle({fillColor:'#c7cabf',radius:4,fillOpacity:.4});
     }
   });
   updateStatus();
@@ -213,11 +238,11 @@ function clearAll(){
   drawPoints=[];filteredData=[];drawing=false;
   map.off('click',onMapClick);map.off('dblclick',onMapDblClick);
   map.getContainer().style.cursor='';
-  document.getElementById('btnDraw').textContent='✏️ Bereich zeichnen';
+  document.getElementById('btnDraw').textContent='Bereich zeichnen';
   document.getElementById('btnDraw').classList.remove('active');
   document.getElementById('btnClear').disabled=true;
   document.getElementById('btnExport').disabled=true;
-  markers.forEach(function(m){m.setStyle({fillColor:'#2980b9',radius:6,fillOpacity:.85});});
+  markers.forEach(function(m){m.setStyle({fillColor:'#5B6373',radius:6,fillOpacity:.85});});
   updateStatus();
   hint('');
 }
@@ -243,30 +268,39 @@ function doExport(){
   hint(filteredData.length+' Einträge exportiert ✓',3000);
 }
 
-// ── CSV Parser ─────────────────────────────────────────────────────────────
+// ── CSV Parser (RFC-4180: quote-aware, Felder dürfen Zeilenumbrüche enthalten)
 function parseCSV(text){
-  var lines=text.split(/\r\n|\r|\n/);
-  var headers=null,rows=[];
-  for(var i=0;i<lines.length;i++){
-    if(!lines[i].trim())continue;
-    var cols=splitLine(lines[i]);
-    if(!headers){headers=cols.map(function(h){return h.trim();});continue;}
+  var records=[],field='',rec=[],inQ=false;
+  for(var i=0;i<text.length;i++){
+    var c=text[i];
+    if(inQ){
+      if(c==='"'){
+        if(text[i+1]==='"'){field+='"';i++;}   // verdoppeltes "" → literales "
+        else inQ=false;                          // Quote-Ende
+      } else field+=c;                           // alles inkl. \n gehört zum Feld
+    } else {
+      if(c==='"') inQ=true;
+      else if(c===',') {rec.push(field);field='';}
+      else if(c==='\n'){rec.push(field);records.push(rec);rec=[];field='';}
+      else if(c==='\r'){                          // lone \r = Zeilenende, \r\n wird vom \n erledigt
+        if(text[i+1]!=='\n'){rec.push(field);records.push(rec);rec=[];field='';}
+      }
+      else field+=c;
+    }
+  }
+  if(field!==''||rec.length){rec.push(field);records.push(rec);}  // letzte Zeile ohne Newline
+
+  if(!records.length) return [];
+  var headers=records[0].map(function(h){return h.trim();});
+  var rows=[];
+  for(var r=1;r<records.length;r++){
+    var cols=records[r];
+    if(cols.length===1 && cols[0].trim()==='') continue;          // leere Zeile überspringen
     var obj={};
-    for(var j=0;j<headers.length;j++) obj[headers[j]]=cols[j]?cols[j].trim():'';
+    for(var j=0;j<headers.length;j++) obj[headers[j]]=(cols[j]!==undefined?cols[j]:'').trim();
     rows.push(obj);
   }
   return rows;
-}
-function splitLine(line){
-  var r=[],cur='',inQ=false;
-  for(var i=0;i<line.length;i++){
-    var c=line[i];
-    if(c==='"')inQ=!inQ;
-    else if(c===','&&!inQ){r.push(cur);cur='';}
-    else cur+=c;
-  }
-  r.push(cur);
-  return r;
 }
 
 // ── Status / Hint ──────────────────────────────────────────────────────────
