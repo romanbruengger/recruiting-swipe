@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Treuhänder Kartenfilter</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+#bar{background:#0d2f3b;color:#fff;padding:10px 16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-height:50px}
+#bar h1{font-size:14px;font-weight:600;margin-right:4px}
+button{padding:6px 12px;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:500}
+button:disabled{opacity:.35;cursor:not-allowed}
+#btnLoad{background:#81dd01;color:#0d2f3b}
+#btnDraw{background:#f39c12;color:#fff}
+#btnDraw.active{background:#e74c3c;animation:pulse 1s infinite}
+#btnClear{background:#7f8c8d;color:#fff}
+#btnExport{background:#2980b9;color:#fff}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
+#status{margin-left:auto;font-size:12px;background:rgba(255,255,255,.12);padding:5px 10px;border-radius:6px}
+#status b{color:#81dd01}
+#map{height:calc(100vh - 50px)}
+#fileInput{display:none}
+#hint{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.75);color:#fff;padding:9px 18px;border-radius:8px;font-size:13px;z-index:999;display:none;pointer-events:none}
+.legend{background:#fff;padding:8px 12px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.15);font-size:12px;line-height:2}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:middle}
+</style>
+</head>
+<body>
+<div id="bar">
+  <h1>Treuhänder Kartenfilter</h1>
+  <input type="file" id="fileInput" accept=".csv">
+  <button id="btnLoad" onclick="document.getElementById('fileInput').click()">📂 CSV laden</button>
+  <button id="btnDraw" onclick="toggleDraw()" disabled>✏️ Bereich zeichnen</button>
+  <button id="btnClear" onclick="clearAll()" disabled>✕ Löschen</button>
+  <button id="btnExport" onclick="doExport()" disabled>⬇ Exportieren</button>
+  <span id="status">CSV laden zum Starten</span>
+</div>
+<div id="map"></div>
+<div id="hint"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"
+  onerror="alert('Leaflet konnte nicht geladen werden. Bitte Internetverbindung prüfen.')"></script>
+<script>
+// ── Karte ──────────────────────────────────────────────────────────────────
+var map = L.map('map').setView([47.377987, 8.679233], 11);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+  attribution:'© OpenStreetMap',maxZoom:19
+}).addTo(map);
+
+// Büro
+var officeIcon = L.divIcon({
+  html:'<div style="width:14px;height:14px;background:#e74c3c;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 2px #e74c3c;margin:-7px 0 0 -7px"></div>',
+  className:'',iconSize:[0,0]
+});
+L.marker([47.377987,8.679233],{icon:officeIcon}).addTo(map)
+  .bindPopup('<b>Dein Büro</b>');
+
+// Legende
+var leg=L.control({position:'bottomright'});
+leg.onAdd=function(){
+  var d=L.DomUtil.create('div','legend');
+  d.innerHTML='<span class="dot" style="background:#2980b9"></span>Alle<br>'+
+    '<span class="dot" style="background:#27ae60"></span>Im Bereich<br>'+
+    '<span class="dot" style="background:#e74c3c;border:2px solid #fff"></span>Büro';
+  return d;
+};
+leg.addTo(map);
+
+// ── State ──────────────────────────────────────────────────────────────────
+var allData=[],markers=[],filteredData=[];
+var drawing=false,drawPoints=[],drawLayer=null,polyLayer=null;
+
+// ── CSV laden ──────────────────────────────────────────────────────────────
+document.getElementById('fileInput').addEventListener('change',function(e){
+  var file=e.target.files[0];
+  if(!file)return;
+  hint('Datei wird geladen…');
+  var reader=new FileReader();
+  reader.onload=function(ev){
+    try{
+      var text=ev.target.result;
+      if(text.charCodeAt(0)===0xFEFF) text=text.slice(1);
+      var rows=parseCSV(text);
+      if(!rows.length){hint('CSV ist leer!');return;}
+      var keys=Object.keys(rows[0]);
+      var latKey=keys.find(function(k){return k.toLowerCase().indexOf('lat')>-1;});
+      var lngKey=keys.find(function(k){return k.toLowerCase().indexOf('lng')>-1||k.toLowerCase().indexOf('lon')>-1;});
+      if(!latKey||!lngKey){
+        hint('Spalten koordinaten_lat/koordinaten_lng nicht gefunden! Spalten: '+keys.join(', '));
+        return;
+      }
+      markers.forEach(function(m){map.removeLayer(m);});
+      markers=[];allData=[];filteredData=[];
+      rows.forEach(function(row){
+        var lat=parseFloat(row[latKey]);
+        var lng=parseFloat(row[lngKey]);
+        if(isNaN(lat)||isNaN(lng)||lat===0&&lng===0)return;
+        var m=L.circleMarker([lat,lng],{
+          radius:6,fillColor:'#2980b9',color:'#fff',
+          weight:1.5,opacity:1,fillOpacity:.85
+        }).addTo(map);
+        var web=row.webseite?'<br><a href="'+row.webseite+'" target="_blank" style="color:#2980b9;font-size:11px">'+row.webseite+'</a>':'';
+        m.bindPopup('<b>'+(row.name||'–')+'</b><br><span style="font-size:11px;color:#666">'+(row.strasse||'')+', '+(row.plz||'')+' '+(row.ort||'')+'</span>'+web);
+        m.rowData=row;
+        markers.push(m);
+        allData.push(row);
+      });
+      if(markers.length){
+        map.fitBounds(L.featureGroup(markers).getBounds().pad(.08));
+      }
+      hint(allData.length+' Treuhänder geladen ('+(rows.length-allData.length)+' ohne Koordinaten übersprungen)',3000);
+      document.getElementById('btnDraw').disabled=false;
+      updateStatus();
+    }catch(err){
+      hint('Fehler: '+err.message);
+      console.error(err);
+    }
+  };
+  reader.onerror=function(){hint('Datei konnte nicht gelesen werden.');};
+  reader.readAsText(file,'UTF-8');
+  this.value='';
+});
+
+// ── Polygon zeichnen (ohne externe Bibliothek) ─────────────────────────────
+function toggleDraw(){
+  if(drawing){
+    finishDraw();
+  } else {
+    startDraw();
+  }
+}
+
+function startDraw(){
+  drawing=true;
+  drawPoints=[];
+  if(drawLayer){map.removeLayer(drawLayer);drawLayer=null;}
+  if(polyLayer){map.removeLayer(polyLayer);polyLayer=null;}
+  map.getContainer().style.cursor='crosshair';
+  document.getElementById('btnDraw').textContent='✓ Fertig (oder Doppelklick)';
+  document.getElementById('btnDraw').classList.add('active');
+  hint('Klicken zum Hinzufügen von Punkten — Doppelklick oder "Fertig" zum Abschliessen');
+  map.on('click',onMapClick);
+  map.on('dblclick',onMapDblClick);
+}
+
+function onMapClick(e){
+  if(!drawing)return;
+  drawPoints.push(e.latlng);
+  updateDrawPreview();
+}
+
+function onMapDblClick(e){
+  if(!drawing)return;
+  // letzten Doppelklick-Punkt nicht doppelt hinzufügen
+  finishDraw();
+}
+
+function updateDrawPreview(){
+  if(drawLayer){map.removeLayer(drawLayer);}
+  if(drawPoints.length<2)return;
+  drawLayer=L.polyline(drawPoints,{color:'#e74c3c',weight:2,dashArray:'6,4'}).addTo(map);
+}
+
+function finishDraw(){
+  map.off('click',onMapClick);
+  map.off('dblclick',onMapDblClick);
+  drawing=false;
+  map.getContainer().style.cursor='';
+  document.getElementById('btnDraw').textContent='✏️ Bereich neu zeichnen';
+  document.getElementById('btnDraw').classList.remove('active');
+  if(drawLayer){map.removeLayer(drawLayer);drawLayer=null;}
+  hint('');
+  if(drawPoints.length<3){
+    hint('Mindestens 3 Punkte benötigt.',2500);
+    return;
+  }
+  polyLayer=L.polygon(drawPoints,{color:'#e74c3c',fillOpacity:.08,weight:2}).addTo(map);
+  filterByPoly(drawPoints);
+  document.getElementById('btnClear').disabled=false;
+}
+
+function filterByPoly(ring){
+  filteredData=[];
+  markers.forEach(function(m){
+    if(pip(m.getLatLng(),ring)){
+      m.setStyle({fillColor:'#27ae60',radius:8,fillOpacity:1});
+      m.bringToFront();
+      filteredData.push(m.rowData);
+    } else {
+      m.setStyle({fillColor:'#bbb',radius:4,fillOpacity:.3});
+    }
+  });
+  updateStatus();
+  document.getElementById('btnExport').disabled=filteredData.length===0;
+  hint(filteredData.length+' Treuhänder im Bereich gefunden.',3000);
+}
+
+// Ray-casting
+function pip(pt,ring){
+  var x=pt.lng,y=pt.lat,inside=false;
+  for(var i=0,j=ring.length-1;i<ring.length;j=i++){
+    var xi=ring[i].lng,yi=ring[i].lat;
+    var xj=ring[j].lng,yj=ring[j].lat;
+    if(((yi>y)!==(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi))inside=!inside;
+  }
+  return inside;
+}
+
+function clearAll(){
+  if(drawLayer){map.removeLayer(drawLayer);drawLayer=null;}
+  if(polyLayer){map.removeLayer(polyLayer);polyLayer=null;}
+  drawPoints=[];filteredData=[];drawing=false;
+  map.off('click',onMapClick);map.off('dblclick',onMapDblClick);
+  map.getContainer().style.cursor='';
+  document.getElementById('btnDraw').textContent='✏️ Bereich zeichnen';
+  document.getElementById('btnDraw').classList.remove('active');
+  document.getElementById('btnClear').disabled=true;
+  document.getElementById('btnExport').disabled=true;
+  markers.forEach(function(m){m.setStyle({fillColor:'#2980b9',radius:6,fillOpacity:.85});});
+  updateStatus();
+  hint('');
+}
+
+// ── Export ─────────────────────────────────────────────────────────────────
+function doExport(){
+  if(!filteredData.length)return;
+  var headers=Object.keys(filteredData[0]);
+  var lines=filteredData.map(function(r){
+    return headers.map(function(h){
+      var v=r[h]===undefined?'':String(r[h]);
+      if(v.indexOf(',')>-1||v.indexOf('"')>-1||v.indexOf('\n')>-1)v='"'+v.replace(/"/g,'""')+'"';
+      return v;
+    }).join(',');
+  });
+  var csv='﻿'+headers.join(',')+'\n'+lines.join('\n');
+  var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');
+  a.href=url;a.download='treuhaender_gefiltert.csv';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  hint(filteredData.length+' Einträge exportiert ✓',3000);
+}
+
+// ── CSV Parser ─────────────────────────────────────────────────────────────
+function parseCSV(text){
+  var lines=text.split(/\r\n|\r|\n/);
+  var headers=null,rows=[];
+  for(var i=0;i<lines.length;i++){
+    if(!lines[i].trim())continue;
+    var cols=splitLine(lines[i]);
+    if(!headers){headers=cols.map(function(h){return h.trim();});continue;}
+    var obj={};
+    for(var j=0;j<headers.length;j++) obj[headers[j]]=cols[j]?cols[j].trim():'';
+    rows.push(obj);
+  }
+  return rows;
+}
+function splitLine(line){
+  var r=[],cur='',inQ=false;
+  for(var i=0;i<line.length;i++){
+    var c=line[i];
+    if(c==='"')inQ=!inQ;
+    else if(c===','&&!inQ){r.push(cur);cur='';}
+    else cur+=c;
+  }
+  r.push(cur);
+  return r;
+}
+
+// ── Status / Hint ──────────────────────────────────────────────────────────
+function updateStatus(){
+  var el=document.getElementById('status');
+  if(!allData.length){el.innerHTML='CSV laden zum Starten';return;}
+  if(!polyLayer&&!drawing){el.innerHTML='<b>'+allData.length+'</b> geladen — Bereich zeichnen';return;}
+  if(filteredData.length){el.innerHTML='<b>'+filteredData.length+'</b> von '+allData.length+' im Bereich';}
+  else{el.innerHTML='<b>'+allData.length+'</b> geladen';}
+}
+
+var hintTimer;
+function hint(msg,ms){
+  var el=document.getElementById('hint');
+  el.textContent=msg;
+  el.style.display=msg?'block':'none';
+  clearTimeout(hintTimer);
+  if(msg&&ms) hintTimer=setTimeout(function(){el.style.display='none';},ms);
+}
+</script>
+</body>
+</html>

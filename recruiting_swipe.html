@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Recruiting Swipe</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0f1923;--card:#1a2535;--accent:#4ade80;
+  --reject:#f87171;--text:#f0f4f8;--muted:#8899aa;--border:#2a3a4a;
+}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+
+/* Header */
+#hdr{display:none;align-items:center;justify-content:space-between;padding:12px 18px;background:#111e2b;border-bottom:1px solid var(--border);flex-shrink:0}
+#hdr h1{font-size:15px;font-weight:700}#hdr h1 b{color:var(--accent)}
+#prog{font-size:12px;color:var(--muted)}
+#btn-ml{background:#1e2d40;border:1px solid var(--border);color:var(--text);padding:6px 13px;border-radius:8px;cursor:pointer;font-size:13px}
+#ml-n{background:var(--accent);color:#000;border-radius:50%;width:17px;height:17px;display:none;align-items:center;justify-content:center;font-size:10px;font-weight:700;margin-left:5px}
+
+/* Stage */
+#stage{flex:1;display:none;align-items:center;justify-content:center;position:relative;overflow:hidden}
+
+/* Card */
+.card{
+  position:absolute;
+  width:min(400px,90vw);
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:18px;
+  overflow:hidden;
+  box-shadow:0 10px 40px rgba(0,0,0,.5);
+  touch-action:none;
+  user-select:none;
+  will-change:transform;
+}
+.card.back{transform:scale(.96) translateY(12px);z-index:1;pointer-events:none}
+.card.front{z-index:2;cursor:pointer}
+.card.is-saved{border-color:#4ade80;border-width:2px;box-shadow:0 0 0 3px rgba(74,222,128,.25),0 10px 40px rgba(0,0,0,.5)}
+/* Hover-Effekt: subtiles Aufhellen + Schatten */
+.card.front::after{content:'';position:absolute;inset:0;border-radius:18px;background:transparent;transition:background .18s;pointer-events:none}
+.card.front:hover::after{background:rgba(255,255,255,.05)}
+.card.front:hover{box-shadow:0 18px 56px rgba(0,0,0,.65),0 0 0 1px rgba(255,255,255,.07);transition:box-shadow .18s}
+.card.front:hover .body{background:rgba(255,255,255,.02)}
+.row a{cursor:pointer}
+.row a:hover{color:var(--accent);text-decoration:underline}
+
+.photo{width:100%;height:380px;object-fit:cover;object-position:top center;display:block;background:#0f1923}
+.initials{width:100%;height:380px;display:flex;align-items:center;justify-content:center;font-size:80px;font-weight:900;letter-spacing:-2px}
+.body{padding:18px 20px 20px}
+.p-name{font-size:21px;font-weight:800;line-height:1.2;margin-bottom:3px}
+.p-pos{font-size:13px;color:var(--accent);font-weight:500;margin-bottom:2px}
+.p-firm{font-size:12px;color:var(--muted);margin-bottom:14px}
+.divider{height:1px;background:var(--border);margin-bottom:12px}
+.row{display:flex;align-items:flex-start;gap:9px;font-size:13px;margin-bottom:8px;line-height:1.4}
+.row span{opacity:.55;flex-shrink:0;margin-top:1px}
+.row a{color:var(--text);text-decoration:none;word-break:break-all}
+.row a:hover{color:var(--accent)}
+
+/* Overlay */
+.ov{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;border-radius:18px;opacity:0;pointer-events:none;font-size:48px;font-weight:900;letter-spacing:2px;transition:opacity .05s}
+.ov-like{background:rgba(74,222,128,.12);color:#4ade80;border:3px solid #4ade80}
+.ov-nope{background:rgba(248,113,113,.12);color:#f87171;border:3px solid #f87171}
+.ov-saved{background:rgba(74,222,128,.18);color:#4ade80;border:3px solid #4ade80;font-size:90px}
+.saved-badge{position:absolute;top:12px;right:12px;background:#4ade80;color:#000;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;z-index:5;box-shadow:0 2px 8px rgba(0,0,0,.4)}
+
+/* Buttons */
+#btns{display:none;justify-content:center;gap:18px;padding:16px;flex-shrink:0}
+.btn{width:58px;height:58px;border-radius:50%;border:2px solid;background:var(--card);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:22px;transition:transform .12s,background .12s}
+.btn:hover{transform:scale(1.12)}
+.btn:active{transform:scale(.95)}
+.btn-n{border-color:var(--reject);color:var(--reject)}.btn-n:hover{background:var(--reject);color:#fff}
+.btn-l{border-color:var(--accent);color:var(--accent)}.btn-l:hover{background:var(--accent);color:#000}
+.btn-u{border-color:var(--muted);color:var(--muted);width:46px;height:46px;font-size:18px}
+#kbd{display:none;flex-shrink:0;padding:6px 16px 14px;text-align:center}
+#kbd-inner{display:inline-flex;gap:6px;align-items:center;background:#1a2535;border:1px solid #2a3a4a;border-radius:10px;padding:10px 20px;flex-wrap:wrap;justify-content:center}
+.kbd-item{display:flex;align-items:center;gap:6px;font-size:13px;color:#c8d8e8;white-space:nowrap}
+.kbd-item+.kbd-item{padding-left:12px;border-left:1px solid #2a3a4a}
+.key{background:#0f1923;border:1px solid #3a4a5a;border-bottom:3px solid #3a4a5a;border-radius:6px;padding:3px 9px;font-size:12px;font-weight:700;color:#fff;font-family:monospace;line-height:1.4}
+
+/* Done */
+#done{display:none;flex-direction:column;align-items:center;justify-content:center;flex:1;gap:12px;text-align:center;padding:20px}
+#done .em{font-size:56px}
+#done h2{font-size:20px}
+#done p{font-size:13px;color:var(--muted)}
+#done button{background:var(--accent);color:#000;border:none;padding:10px 22px;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px}
+
+/* Load screen */
+#load{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:99}
+#load .em{font-size:52px}
+#load h2{font-size:20px}
+#load p{font-size:13px;color:var(--muted);text-align:center;max-width:300px}
+#load-btn{background:var(--accent);color:#000;padding:11px 24px;border-radius:10px;border:none;font-size:15px;font-weight:700;cursor:pointer}
+#load-err{color:var(--reject);font-size:13px;display:none;max-width:320px;text-align:center}
+#file{display:none}
+
+/* Merkliste */
+#ml{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:50;display:none;align-items:flex-end;justify-content:center}
+#ml.open{display:flex}
+#ml-box{background:var(--card);width:min(480px,100%);border-radius:18px 18px 0 0;max-height:78vh;display:flex;flex-direction:column;border-top:1px solid var(--border)}
+#ml-head{padding:14px 18px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}
+#ml-head h3{font-size:15px;font-weight:700}
+#ml-x{background:none;border:none;color:var(--muted);font-size:24px;cursor:pointer;line-height:1}
+#ml-body{overflow-y:auto;flex:1}
+#ml-foot{padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:8px}
+#ml-exp{background:var(--accent);color:#000;border:none;padding:10px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;flex:1}
+#ml-clr{background:none;border:1px solid var(--border);color:var(--muted);padding:10px 14px;border-radius:8px;font-size:13px;cursor:pointer}
+.li{padding:13px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px}
+.li:last-child{border:none}
+.li-n{font-size:14px;font-weight:600;margin-bottom:2px}
+.li-s{font-size:12px;color:var(--muted)}
+.li-rm{background:none;border:none;color:var(--reject);font-size:18px;cursor:pointer;opacity:.5}.li-rm:hover{opacity:1}
+#ml-empty{padding:36px;text-align:center;font-size:13px;color:var(--muted)}
+
+/* Toast */
+#toast{position:fixed;bottom:110px;left:50%;transform:translateX(-50%);background:rgba(20,32,48,.96);border:1px solid var(--border);padding:8px 16px;border-radius:8px;font-size:13px;z-index:200;pointer-events:none;opacity:0;transition:opacity .25s;white-space:nowrap}
+#toast.on{opacity:1}
+</style>
+</head>
+<body>
+
+<div id="load">
+  <div class="em">💼</div>
+  <h2>Recruiting Swipe</h2>
+  <p>Lade deine Mitarbeiter-CSV und gehe die Kandidaten durch.</p>
+  <input type="file" id="file" accept=".csv">
+  <button id="load-btn" onclick="document.getElementById('file').click()">📂 CSV laden</button>
+  <div id="load-err"></div>
+</div>
+
+<div id="hdr">
+  <h1>Recruiting <b>Swipe</b></h1>
+  <span id="prog"></span>
+  <button id="btn-ml" onclick="mlOpen()">⭐ Merkliste<span id="ml-n">0</span></button>
+</div>
+
+<div id="stage"></div>
+<div id="done">
+  <div class="em">🎉</div>
+  <h2>Alle durch!</h2>
+  <p>Du hast alle Kandidaten bewertet.</p>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
+    <button onclick="doUndo()" style="background:#1e2d40;border:1px solid #2a3a4a;color:#f0f4f8">↩ Zum letzten</button>
+    <button onclick="mlOpen()">⭐ Merkliste</button>
+    <button onclick="restart()" style="background:#1e2d40;border:1px solid #2a3a4a;color:#4ade80">↺ Von vorne</button>
+  </div>
+</div>
+
+<div id="btns">
+  <button class="btn btn-n" onclick="doSwipe('left')"  title="Überspringen (→)">✗</button>
+  <button class="btn btn-l" onclick="doLike()"         title="Merken (Leertaste)">♥</button>
+</div>
+<div id="kbd">
+  <div id="kbd-inner">
+    <div class="kbd-item"><span class="key">→</span> Weiter</div>
+    <div class="kbd-item"><span class="key">←</span> Zurück</div>
+    <div class="kbd-item"><span class="key">Leertaste</span> Merken</div>
+  </div>
+</div>
+
+<div id="ml" onclick="if(event.target===this)mlClose()">
+  <div id="ml-box">
+    <div id="ml-head">
+      <h3>⭐ Merkliste</h3>
+      <button id="ml-x" onclick="mlClose()">×</button>
+    </div>
+    <div id="ml-body"></div>
+    <div id="ml-foot">
+      <button id="ml-exp" onclick="mlExport()">⬇ Als CSV exportieren</button>
+      <button id="ml-clr" onclick="mlClear()">Leeren</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// State
+// ═══════════════════════════════════════════════════════════════════════════
+var cards    = [];      // gefilterte Mitarbeiterliste
+var idx      = 0;       // aktuelle Position
+var busy     = false;   // Verhindert Doppel-Aktionen
+var hist     = [];      // Undo-Stack
+var saved    = JSON.parse(localStorage.getItem('rs_saved') || '[]');
+var fields   = [];      // CSV-Header
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CSV laden
+// ═══════════════════════════════════════════════════════════════════════════
+document.getElementById('file').addEventListener('change', function(e) {
+  var f = e.target.files[0]; if (!f) return;
+  var r = new FileReader();
+  r.onload = function(ev) {
+    try {
+      var t = ev.target.result;
+      if (t.charCodeAt(0) === 0xFEFF) t = t.slice(1);
+      var parsed = csvParse(t);
+      fields = parsed.fields;
+      // Filter & deduplizieren
+      var BAD = /^(unser|unsere|ihre|externer|full\s|aktuell|newsletter|themen|vorteile|leistungen|büro|partnernetz|gründer|kontakt\s|portrait\s|dienstleistung|service|about\s)/i;
+      var seen = {};
+      cards = parsed.rows.filter(function(r) {
+        var n = (r.voller_name || '').trim();
+        if (!n || n.length < 3 || n.length > 45) return false;
+        if (BAD.test(n)) return false;
+        if (n.split(' ').length > 5) return false;
+        var k = n.toLowerCase() + '|' + (r.firma || '').toLowerCase();
+        if (seen[k]) return false;
+        seen[k] = 1; return true;
+      });
+      if (!cards.length) { showErr('Keine gültigen Einträge gefunden.'); return; }
+      idx = 0; hist = [];
+      document.getElementById('load').style.display = 'none';
+      document.getElementById('hdr').style.display  = 'flex';
+      document.getElementById('btns').style.display = 'flex';
+      document.getElementById('kbd').style.display  = 'block';
+      document.getElementById('stage').style.display = 'flex';
+      badgeUpdate();
+      render();
+    } catch(ex) { showErr('Fehler: ' + ex.message); }
+  };
+  r.readAsText(f, 'UTF-8');
+  this.value = '';
+});
+
+function showErr(msg) {
+  var e = document.getElementById('load-err');
+  e.textContent = msg; e.style.display = 'block';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Render
+// ═══════════════════════════════════════════════════════════════════════════
+function render() {
+  var stage = document.getElementById('stage');
+  stage.innerHTML = '';
+
+  if (idx >= cards.length) {
+    stage.style.display = 'none';
+    document.getElementById('done').style.display = 'flex';
+    document.getElementById('btns').style.display = 'none';
+    document.getElementById('kbd').style.display  = 'none';
+    progUpdate();
+    return;
+  }
+
+  document.getElementById('done').style.display  = 'none';
+  document.getElementById('btns').style.display  = 'flex';
+  document.getElementById('kbd').style.display   = 'block';
+  stage.style.display = 'flex';
+
+  // Hinterkarte
+  if (idx + 1 < cards.length) {
+    var b = makeCard(cards[idx + 1]);
+    b.classList.add('back');
+    stage.appendChild(b);
+  }
+  // Vorderkarte
+  var f = makeCard(cards[idx]);
+  f.classList.add('front');
+  stage.appendChild(f);
+  addPointer(f);
+  progUpdate();
+}
+
+function makeCard(d) {
+  var el = document.createElement('div');
+  el.className = 'card' + (isSaved(d) ? ' is-saved' : '');
+  el._d = d;
+
+  var name = (d.voller_name || '–').trim();
+  var pos  = d.position     || '';
+  var firm = d.firma        || '';
+  var mail = d.email        || '';
+  var tel  = d.telefon_direkt || '';
+  var link = d.quelle_url   || d.firma_webseite || '';
+  var foto = d.foto_url     || '';
+  var ok   = foto && !foto.startsWith('data:') &&
+             !/\.(svg)(\?|$)/i.test(foto) &&
+             !/arrow|icon|logo|placeholder|banner|bg-/i.test(foto);
+
+  var hue = Math.abs(hash(name)) % 360;
+  var ini = name.split(' ').map(function(w){return w[0]||'';}).join('').slice(0,2).toUpperCase();
+  var grad = 'linear-gradient(135deg,hsl('+hue+',45%,18%),hsl('+hue+',30%,10%))';
+
+  var top = ok
+    ? '<img class="photo" src="'+esc(foto)+'" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'flex\'" alt=""><div class="initials" style="display:none;background:'+grad+'">'+ini+'</div>'
+    : '<div class="initials" style="background:'+grad+'">'+ini+'</div>';
+
+  var rows = '';
+  if (mail) rows += '<div class="row"><span>✉</span><a href="mailto:'+esc(mail)+'">'+esc(mail)+'</a></div>';
+  if (tel)  rows += '<div class="row"><span>📞</span><span>'+esc(tel)+'</span></div>';
+  if (link) rows += '<div class="row"><span>🔗</span><a href="'+esc(link)+'" target="_blank" rel="noopener">Team-Seite öffnen</a></div>';
+  var qLinkedin = encodeURIComponent(name + ' linkedin treuhand');
+  var qXing     = encodeURIComponent(name + ' xing treuhand');
+  rows += '<div class="row"><span>🔍</span><a href="https://www.google.com/search?q='+qLinkedin+'" target="_blank" rel="noopener">Google / LinkedIn</a></div>';
+  rows += '<div class="row"><span>🔍</span><a href="https://www.google.com/search?q='+qXing+'" target="_blank" rel="noopener">Google / XING</a></div>';
+
+  el.innerHTML = top +
+    '<div class="body">'+
+      '<div class="p-name">'+esc(name)+'</div>'+
+      (pos  ? '<div class="p-pos">'+esc(pos)+'</div>'  : '')+
+      (firm ? '<div class="p-firm">'+esc(firm)+'</div>': '')+
+      (rows ? '<div class="divider"></div>'+rows : '')+
+    '</div>'+
+    '<div class="ov ov-like">MERKEN ♥</div>'+
+    '<div class="ov ov-nope">WEITER ✗</div>'+
+    (isSaved(d) ? '<div class="saved-badge">✓</div>' : '');
+  return el;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Pointer Events
+// Capture erst nach echtem Drag-Start → Links in Chromium funktionieren normal
+// ═══════════════════════════════════════════════════════════════════════════
+function addPointer(card) {
+  var sx=0, sy=0, dx=0, dy=0, down=false, dragging=false;
+
+  card.addEventListener('pointerdown', function(e) {
+    if (busy || e.button !== 0) return;
+    down = true; dragging = false;
+    dx = 0; dy = 0;
+    sx = e.clientX; sy = e.clientY;
+    card.style.transition = 'none';
+    // KEIN setPointerCapture hier — sonst blockiert Chromium Link-Clicks
+  });
+
+  card.addEventListener('pointermove', function(e) {
+    if (!down) return;
+    dx = e.clientX - sx;
+    dy = e.clientY - sy;
+    // Erst ab 8px echter Bewegung als Drag behandeln
+    if (!dragging && Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+    if (!dragging) {
+      dragging = true;
+      card.setPointerCapture(e.pointerId); // jetzt erst capturen
+    }
+    card.style.transform = 'translate('+dx+'px,'+dy+'px) rotate('+(dx*0.07)+'deg)';
+    var p = Math.min(Math.abs(dx)/90, 1);
+    card.querySelector('.ov-like').style.opacity = dx > 0 ? p : 0;
+    card.querySelector('.ov-nope').style.opacity = dx < 0 ? p : 0;
+  });
+
+  card.addEventListener('pointerup', function(e) {
+    if (!down) return;
+    down = false;
+    if (dragging) {
+      // ── Echter Drag: Swipe auslösen ──
+      dragging = false;
+      try { card.releasePointerCapture(e.pointerId); } catch(x){}
+      card.style.transition = 'transform .3s, opacity .3s';
+      if      (dx >  80) flyOut(card, 'right');
+      else if (dx < -80) flyOut(card, 'left');
+      else {
+        card.style.transform = '';
+        card.querySelector('.ov-like').style.opacity = 0;
+        card.querySelector('.ov-nope').style.opacity = 0;
+      }
+    } else {
+      // ── Tap/Click: Link prüfen oder Google/LinkedIn öffnen ──
+      // Welches Element wurde angetippt?
+      var hit = document.elementFromPoint(e.clientX, e.clientY);
+      var t = hit;
+      while (t && t !== card) {
+        if (t.tagName === 'A' && t.href) {
+          window.open(t.href, '_blank', 'noopener,noreferrer');
+          return;
+        }
+        t = t.parentElement;
+      }
+      // Kein Link → Google/LinkedIn
+      if (card._d && card._d.voller_name) {
+        var q = encodeURIComponent(card._d.voller_name + ' linkedin treuhand');
+        window.open('https://www.google.com/search?q=' + q, '_blank', 'noopener,noreferrer');
+      }
+    }
+  });
+
+  card.addEventListener('pointercancel', function() {
+    down = false; dragging = false;
+    card.style.transition = 'transform .3s';
+    card.style.transform = '';
+    card.querySelector('.ov-like').style.opacity = 0;
+    card.querySelector('.ov-nope').style.opacity = 0;
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Swipe-Logik
+// ═══════════════════════════════════════════════════════════════════════════
+function flyOut(card, dir) {
+  if (busy) return;
+  busy = true;
+  if (dir === 'right') {
+    saveEntry(card._d);
+    // Grüner ✓ kurz einblenden, dann wegfliegen
+    var ov = document.createElement('div');
+    ov.className = 'ov ov-saved';
+    ov.textContent = '✓';
+    ov.style.opacity = '1';
+    card.appendChild(ov);
+    setTimeout(function() {
+      var tx = 700, ty = -80, rot = 22;
+      card.style.transition = 'transform .32s ease-in, opacity .32s';
+      card.style.transform  = 'translate('+tx+'px,'+ty+'px) rotate('+rot+'deg)';
+      card.style.opacity    = '0';
+      setTimeout(function() { idx++; busy = false; render(); }, 340);
+    }, 350);
+  } else {
+    card.style.transition = 'transform .32s ease-in, opacity .32s';
+    card.style.transform  = 'translate(-700px,80px) rotate(-22deg)';
+    card.style.opacity    = '0';
+    setTimeout(function() { idx++; busy = false; render(); }, 340);
+  }
+  hist.push({ dir: dir, d: card._d });
+}
+
+function doSwipe(dir) {
+  if (busy || idx >= cards.length) return;
+  var front = document.querySelector('.card.front');
+  if (front) flyOut(front, dir);
+}
+
+function doLike() {
+  if (busy || idx >= cards.length) return;
+  var front = document.querySelector('.card.front');
+  if (!front) return;
+  confetti();
+  flyOut(front, 'right');
+}
+
+function doUndo() {
+  if (busy || idx === 0) return;
+  // Nur zurücknavigieren — Merkliste bleibt unverändert
+  if (hist.length) hist.pop();
+  idx--;
+  render();
+  toast('↩ Zurück');
+}
+
+function restart() {
+  idx = 0; hist = []; busy = false;
+  render();
+  toast('↺ Von vorne gestartet');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Merkliste
+// ═══════════════════════════════════════════════════════════════════════════
+function saveEntry(d) {
+  if (isSaved(d)) return; // kein Duplikat
+  var entry = Object.assign({}, d, {
+    google_linkedin_url: 'https://www.google.com/search?q=' +
+      encodeURIComponent((d.voller_name || '') + ' linkedin treuhand')
+  });
+  saved.push(entry); saveLocal(); badgeUpdate();
+  toast('♥ Gemerkt');
+}
+
+function isSaved(d) {
+  return saved.some(function(s) {
+    return s.voller_name === d.voller_name && s.firma === d.firma;
+  });
+}
+function saveLocal() {
+  try { localStorage.setItem('rs_saved', JSON.stringify(saved)); } catch(e) {}
+}
+function badgeUpdate() {
+  var b = document.getElementById('ml-n');
+  b.textContent = saved.length;
+  b.style.display = saved.length ? 'inline-flex' : 'none';
+}
+function mlOpen() {
+  renderML();
+  document.getElementById('ml').classList.add('open');
+}
+function mlClose() {
+  document.getElementById('ml').classList.remove('open');
+}
+function renderML() {
+  var b = document.getElementById('ml-body');
+  if (!saved.length) { b.innerHTML = '<div id="ml-empty">Noch niemanden gemerkt.</div>'; return; }
+  b.innerHTML = saved.map(function(s, i) {
+    var sub = [s.position, s.firma].filter(Boolean).join(' · ');
+    var em  = s.email ? ' · <a href="mailto:'+esc(s.email)+'" style="color:var(--accent)">'+esc(s.email)+'</a>' : '';
+    return '<div class="li">'+
+      '<div><div class="li-n">'+esc(s.voller_name||'–')+'</div>'+
+      '<div class="li-s">'+esc(sub)+em+'</div></div>'+
+      '<button class="li-rm" onclick="mlRemove('+i+')">✗</button>'+
+    '</div>';
+  }).join('');
+}
+function mlRemove(i) {
+  saved.splice(i, 1); saveLocal(); badgeUpdate(); renderML();
+}
+function mlClear() {
+  if (!confirm('Merkliste wirklich leeren?')) return;
+  saved = []; saveLocal(); badgeUpdate(); renderML();
+}
+function mlExport() {
+  if (!saved.length) return;
+  // Alle Felder des gespeicherten Eintrags nehmen (inkl. google_linkedin_url)
+  var f = Object.keys(saved[0]);
+  var rows = saved.map(function(r) {
+    return f.map(function(h) {
+      var v = String(r[h]||'');
+      if (v.includes(',') || v.includes('"') || v.includes('\n')) v='"'+v.replace(/"/g,'""')+'"';
+      return v;
+    }).join(',');
+  });
+  var csv = '﻿' + f.join(',') + '\n' + rows.join('\n');
+  var a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'})),
+    download: 'merkliste.csv'
+  });
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  toast('✓ '+saved.length+' Einträge exportiert');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Keyboard
+// ═══════════════════════════════════════════════════════════════════════════
+document.addEventListener('keydown', function(e) {
+  if (document.getElementById('load').style.display !== 'none') return;
+  if (document.getElementById('ml').classList.contains('open')) {
+    if (e.key === 'Escape') mlClose(); return;
+  }
+  if (e.key === 'ArrowRight') doSwipe('left');   // vorwärts = überspringen
+  if (e.key === 'ArrowLeft')  doUndo();           // zurück = rückgängig
+  if (e.key === ' ')          { e.preventDefault(); doLike(); } // Leertaste = merken
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Progress
+// ═══════════════════════════════════════════════════════════════════════════
+function progUpdate() {
+  var current = idx >= cards.length ? cards.length : idx + 1;
+  document.getElementById('prog').textContent =
+    current + ' / ' + cards.length;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Toast
+// ═══════════════════════════════════════════════════════════════════════════
+var toastT;
+function toast(msg) {
+  var el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('on');
+  clearTimeout(toastT);
+  toastT = setTimeout(function(){ el.classList.remove('on'); }, 2000);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CSV Parser
+// ═══════════════════════════════════════════════════════════════════════════
+function csvParse(txt) {
+  var lines = txt.split(/\r\n|\r|\n/), headers = null, rows = [];
+  for (var i = 0; i < lines.length; i++) {
+    if (!lines[i].trim()) continue;
+    var cols = csvLine(lines[i]);
+    if (!headers) { headers = cols.map(function(h){return h.trim();}); continue; }
+    var o = {};
+    for (var j = 0; j < headers.length; j++) o[headers[j]] = (cols[j]||'').trim();
+    rows.push(o);
+  }
+  return { fields: headers || [], rows: rows };
+}
+function csvLine(s) {
+  var r=[], c='', q=false;
+  for (var i=0; i<s.length; i++) {
+    if (s[i]==='"') q=!q;
+    else if (s[i]===',' && !q) { r.push(c); c=''; }
+    else c+=s[i];
+  }
+  r.push(c); return r;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Utils
+// ═══════════════════════════════════════════════════════════════════════════
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function hash(s) {
+  var h=0; for(var i=0;i<s.length;i++) h=Math.imul(31,h)+s.charCodeAt(i)|0; return h;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Confetti
+// ═══════════════════════════════════════════════════════════════════════════
+function confetti() {
+  var cv = document.createElement('canvas');
+  cv.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:999';
+  document.body.appendChild(cv);
+  var ctx = cv.getContext('2d');
+  cv.width  = window.innerWidth;
+  cv.height = window.innerHeight;
+
+  var COLORS = ['#4ade80','#f87171','#facc15','#60a5fa','#f472b6','#a78bfa','#fb923c'];
+  var pieces = [];
+  for (var i = 0; i < 120; i++) {
+    pieces.push({
+      x:  Math.random() * cv.width,
+      y:  -10 - Math.random() * 200,
+      r:  4 + Math.random() * 6,
+      d:  2 + Math.random() * 4,
+      c:  COLORS[Math.floor(Math.random() * COLORS.length)],
+      tilt: Math.random() * 10 - 5,
+      tiltSpeed: 0.1 + Math.random() * 0.2,
+      tiltAngle: 0,
+      shape: Math.random() > 0.5 ? 'rect' : 'circle'
+    });
+  }
+
+  var frame, start = performance.now();
+  function draw(now) {
+    var elapsed = now - start;
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    var alive = false;
+    for (var i = 0; i < pieces.length; i++) {
+      var p = pieces[i];
+      p.y += p.d;
+      p.x += Math.sin(elapsed * 0.003 + i) * 1.2;
+      p.tiltAngle += p.tiltSpeed;
+      p.tilt = Math.sin(p.tiltAngle) * 12;
+      if (p.y < cv.height + 20) alive = true;
+      ctx.fillStyle = p.c;
+      ctx.globalAlpha = Math.max(0, 1 - elapsed / 2800);
+      ctx.beginPath();
+      if (p.shape === 'circle') {
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      } else {
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.tilt * Math.PI / 180);
+        ctx.fillRect(-p.r, -p.r * 0.5, p.r * 2, p.r);
+        ctx.restore();
+        continue;
+      }
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    if (alive && elapsed < 2800) {
+      frame = requestAnimationFrame(draw);
+    } else {
+      cancelAnimationFrame(frame);
+      document.body.removeChild(cv);
+    }
+  }
+  frame = requestAnimationFrame(draw);
+}
+
+badgeUpdate();
+</script>
+</body>
+</html>
