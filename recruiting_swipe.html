@@ -10,7 +10,37 @@
   --bg:#0f1923;--card:#1a2535;--accent:#4ade80;
   --reject:#f87171;--text:#f0f4f8;--muted:#8899aa;--border:#2a3a4a;
 }
-body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;height:100vh;display:flex;flex-direction:row;overflow:hidden}
+
+/* Sidebar (links) */
+#sidebar{display:none;flex-direction:column;width:80px;background:#111e2b;border-right:1px solid var(--border);flex-shrink:0;padding-top:14px;gap:4px}
+#sidebar.on{display:flex}
+.nav{background:none;border:none;border-left:3px solid transparent;color:var(--muted);cursor:pointer;padding:13px 4px;display:flex;flex-direction:column;align-items:center;gap:5px;font-size:11px;font-weight:600;font-family:inherit}
+.nav .ic{font-size:23px;line-height:1}
+.nav:hover{color:var(--text);background:rgba(255,255,255,.04)}
+.nav.active{color:var(--accent);border-left-color:var(--accent);background:rgba(74,222,128,.08)}
+
+/* Main (rechts neben Sidebar) */
+#main{flex:1;display:flex;flex-direction:column;height:100vh;overflow:hidden;min-width:0}
+
+/* Listenansicht */
+#list{flex:1;display:none;flex-direction:column;overflow:hidden;padding:14px 16px 0}
+#list.on{display:flex}
+#list-top{display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-shrink:0}
+#list-q{flex:1;background:#0f1923;border:1px solid var(--border);color:var(--text);padding:11px 14px;border-radius:10px;font-size:14px;outline:none}
+#list-q:focus{border-color:var(--accent)}
+#list-count{font-size:12px;color:var(--muted);white-space:nowrap}
+#list-rows{overflow-y:auto;flex:1;border-top:1px solid var(--border)}
+.lrow{display:flex;align-items:center;gap:13px;padding:11px 8px;border-bottom:1px solid var(--border);cursor:pointer}
+.lrow:hover{background:rgba(255,255,255,.05)}
+.lrow-av{position:relative;width:42px;height:42px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:#fff;overflow:hidden}
+.lrow-av img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:top center}
+.lrow-txt{min-width:0;flex:1}
+.lrow-n{font-size:14px;font-weight:600;display:flex;align-items:center;gap:7px;line-height:1.3}
+.lrow-s{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lrow-b{background:var(--accent);color:#000;border-radius:50%;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:900;flex-shrink:0}
+.lrow-go{color:var(--muted);font-size:18px;flex-shrink:0}
+.list-empty{padding:40px;text-align:center;color:var(--muted);font-size:13px}
 
 /* Header */
 #hdr{display:none;align-items:center;justify-content:space-between;padding:12px 18px;background:#111e2b;border-bottom:1px solid var(--border);flex-shrink:0}
@@ -129,6 +159,13 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
   <div id="load-err"></div>
 </div>
 
+<div id="sidebar">
+  <button class="nav active" id="nav-swipe" onclick="setView('swipe')"><span class="ic">🃏</span>Swipe</button>
+  <button class="nav" id="nav-list" onclick="setView('list')"><span class="ic">📋</span>Liste</button>
+</div>
+
+<div id="main">
+
 <div id="hdr">
   <h1>Recruiting <b>Swipe</b></h1>
   <span id="prog"></span>
@@ -136,6 +173,15 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 </div>
 
 <div id="stage"></div>
+
+<div id="list">
+  <div id="list-top">
+    <input id="list-q" type="text" placeholder="Nach Name oder Firma suchen…" oninput="renderList()" autocomplete="off">
+    <span id="list-count"></span>
+  </div>
+  <div id="list-rows"></div>
+</div>
+
 <div id="done">
   <div class="em">🎉</div>
   <h2>Alle durch!</h2>
@@ -158,6 +204,8 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
     <div class="kbd-item"><span class="key">Leertaste</span> Merken</div>
   </div>
 </div>
+
+</div><!-- /#main -->
 
 <div id="ml" onclick="if(event.target===this)mlClose()">
   <div id="ml-box">
@@ -185,6 +233,7 @@ var busy     = false;   // Verhindert Doppel-Aktionen
 var hist     = [];      // Undo-Stack
 var saved    = JSON.parse(localStorage.getItem('rs_saved') || '[]');
 var fields   = [];      // CSV-Header
+var view     = 'swipe'; // 'swipe' | 'list'
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CSV laden
@@ -217,8 +266,9 @@ document.getElementById('file').addEventListener('change', function(e) {
       document.getElementById('btns').style.display = 'flex';
       document.getElementById('kbd').style.display  = 'block';
       document.getElementById('stage').style.display = 'flex';
+      document.getElementById('sidebar').classList.add('on');
       badgeUpdate();
-      render();
+      setView('swipe');
     } catch(ex) { showErr('Fehler: ' + ex.message); }
   };
   r.readAsText(f, 'UTF-8');
@@ -234,6 +284,7 @@ function showErr(msg) {
 // Render
 // ═══════════════════════════════════════════════════════════════════════════
 function render() {
+  if (view !== 'swipe') return;   // Listenansicht steuert ihre Sichtbarkeit selbst
   var stage = document.getElementById('stage');
   stage.innerHTML = '';
 
@@ -309,6 +360,66 @@ function makeCard(d) {
     '<div class="ov ov-nope">WEITER ✗</div>'+
     (isSaved(d) ? '<div class="saved-badge">✓</div>' : '');
   return el;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Ansicht wechseln (Swipe ⇄ Liste)
+// ═══════════════════════════════════════════════════════════════════════════
+function setView(v) {
+  view = v;
+  document.getElementById('nav-swipe').classList.toggle('active', v === 'swipe');
+  document.getElementById('nav-list').classList.toggle('active', v === 'list');
+  var inList = v === 'list';
+  document.getElementById('list').classList.toggle('on', inList);
+  if (inList) {
+    document.getElementById('stage').style.display = 'none';
+    document.getElementById('done').style.display  = 'none';
+    document.getElementById('btns').style.display  = 'none';
+    document.getElementById('kbd').style.display   = 'none';
+    renderList();
+    document.getElementById('list-q').focus();
+  } else {
+    render();   // stellt Stage/Done/Buttons wieder her
+  }
+}
+
+function renderList() {
+  var q = (document.getElementById('list-q').value || '').toLowerCase().trim();
+  var html = '', count = 0;
+  for (var i = 0; i < cards.length; i++) {
+    var d    = cards[i];
+    var name = (d.voller_name || '').trim();
+    var firm = (d.firma || '').trim();
+    if (q && name.toLowerCase().indexOf(q) < 0 && firm.toLowerCase().indexOf(q) < 0) continue;
+    count++;
+    var sub  = [d.position, firm].filter(Boolean).join(' · ');
+    var foto = d.foto_url || '';
+    var ok   = foto && !foto.startsWith('data:') &&
+               !/\.(svg)(\?|$)/i.test(foto) &&
+               !/arrow|icon|logo|placeholder|banner|bg-/i.test(foto);
+    var hue  = Math.abs(hash(name)) % 360;
+    var ini  = name.split(' ').map(function(w){return w[0]||'';}).join('').slice(0,2).toUpperCase();
+    var grad = 'linear-gradient(135deg,hsl('+hue+',45%,30%),hsl('+hue+',30%,18%))';
+    var av   = '<div class="lrow-av" style="background:'+grad+'">'+ini+
+               (ok ? '<img src="'+esc(foto)+'" onerror="this.remove()" alt="">' : '')+'</div>';
+    var bdg  = isSaved(d) ? '<span class="lrow-b">✓</span>' : '';
+    html += '<div class="lrow" onclick="goToCard('+i+')">'+
+              av+
+              '<div class="lrow-txt">'+
+                '<div class="lrow-n">'+esc(name||'–')+bdg+'</div>'+
+                '<div class="lrow-s">'+esc(sub)+'</div>'+
+              '</div>'+
+              '<span class="lrow-go">›</span>'+
+            '</div>';
+  }
+  document.getElementById('list-rows').innerHTML = html || '<div class="list-empty">Keine Treffer.</div>';
+  document.getElementById('list-count').textContent = count + ' / ' + cards.length;
+}
+
+function goToCard(i) {
+  idx = i;
+  setView('swipe');
+  toast('→ Zur Karte gesprungen');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -527,6 +638,7 @@ document.addEventListener('keydown', function(e) {
   if (document.getElementById('ml').classList.contains('open')) {
     if (e.key === 'Escape') mlClose(); return;
   }
+  if (view === 'list') return;                    // in der Liste keine Swipe-Shortcuts
   if (e.key === 'ArrowRight') doSwipe('left');   // vorwärts = überspringen
   if (e.key === 'ArrowLeft')  doUndo();           // zurück = rückgängig
   if (e.key === ' ')          { e.preventDefault(); doLike(); } // Leertaste = merken
